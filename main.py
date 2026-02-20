@@ -1,21 +1,77 @@
+# ===========================
+# Memory Optimization Section
+# ===========================
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+
+import tensorflow as tf
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
+
+# ===========================
+# Normal Imports
+# ===========================
 from fastapi import FastAPI
 from pydantic import BaseModel
-import tensorflow as tf
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
 import joblib
 
-app = FastAPI()
+# ===========================
+# App Setup
+# ===========================
+app = FastAPI(title="Preventive Health AI API")
 
-# Load model and preprocessing
-model = tf.keras.models.load_model("final_advanced_multi_domain_model.keras")
-scaler = joblib.load("scaler.pkl")
-feature_columns = joblib.load("feature_columns.pkl")
-label_encoders = joblib.load("multi_label_encoders.pkl")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# ----------------------------
-# Request Schema
-# ----------------------------
+# ===========================
+# Global Variables
+# ===========================
+model = None
+scaler = None
+feature_columns = None
+label_encoders = None
+
+# ===========================
+# Load ML Objects on Startup
+# ===========================
+@app.on_event("startup")
+def load_ml_objects():
+    global model, scaler, feature_columns, label_encoders
+
+    print("Loading model...")
+
+    model = tf.keras.models.load_model(
+        "final_advanced_multi_domain_model.keras"
+    )
+
+    scaler = joblib.load("scaler.pkl")
+    feature_columns = joblib.load("feature_columns.pkl")
+    label_encoders = joblib.load("multi_label_encoders.pkl")
+
+    print("Model loaded successfully!")
+
+# ===========================
+# Root Health Check
+# ===========================
+@app.get("/")
+def root():
+    return {"status": "Preventive Health API Running"}
+
+# ===========================
+# Input Schema
+# ===========================
 class HealthInput(BaseModel):
     age: int
     gender: str
@@ -36,7 +92,7 @@ class HealthInput(BaseModel):
     stress_level: str
     screen_time_hours: float
     water_intake_l: float
-    
+
     fatigue: int
     mild_headache: int
     occasional_chest_discomfort: int
@@ -52,50 +108,59 @@ class HealthInput(BaseModel):
     leg_swelling: int
     loss_of_appetite: int
 
-# ----------------------------
-# Recommendation Engine
-# ----------------------------
-def generate_recommendations(risks, data):
+# ===========================
+# Recommendation Logic
+# ===========================
+def generate_recommendations(risks):
     recs = []
 
     if risks["heart_risk"] == "High":
-        recs.append("Consult cardiologist")
-        recs.append("Reduce salt intake")
-    
+        recs += [
+            "Consult cardiologist",
+            "Reduce salt intake",
+            "Monitor blood pressure weekly"
+        ]
+
     if risks["metabolic_risk"] == "High":
-        recs.append("Reduce sugar consumption")
-        recs.append("Increase physical activity")
+        recs += [
+            "Reduce sugar intake",
+            "Increase physical activity"
+        ]
 
     if risks["stress_risk"] == "High":
-        recs.append("Improve sleep schedule")
-        recs.append("Practice stress management")
+        recs += [
+            "Improve sleep schedule",
+            "Practice stress management"
+        ]
 
     if risks["lung_risk"] == "High":
-        recs.append("Avoid smoking")
-        recs.append("Get lung checkup if symptoms persist")
+        recs += [
+            "Avoid smoking",
+            "Seek medical advice if breathlessness continues"
+        ]
 
     if risks["lifestyle_risk"] == "High":
-        recs.append("Start structured exercise plan")
-        recs.append("Improve diet quality")
+        recs += [
+            "Start structured exercise routine",
+            "Improve diet quality"
+        ]
 
     if not recs:
-        recs.append("Maintain current healthy lifestyle")
+        recs.append("Maintain your current healthy lifestyle.")
 
     return recs
 
-# ----------------------------
+# ===========================
 # Prediction Endpoint
-# ----------------------------
+# ===========================
 @app.post("/predict")
 def predict(data: HealthInput):
 
     input_dict = data.dict()
-
-    # Create DataFrame
     df = pd.DataFrame([input_dict])
 
-    # Compute BMI
-    df["bmi"] = df["weight_kg"] / ((df["height_cm"]/100) ** 2)
+    # Calculate BMI
+    df["bmi"] = df["weight_kg"] / ((df["height_cm"] / 100) ** 2)
 
     # One-hot encoding
     df = pd.get_dummies(df)
@@ -109,24 +174,27 @@ def predict(data: HealthInput):
     # Predict
     predictions = model.predict(df_scaled)
 
-    output = {}
-    risk_names = ["heart_risk","metabolic_risk","stress_risk","lung_risk","lifestyle_risk"]
+    risk_names = [
+        "heart_risk",
+        "metabolic_risk",
+        "stress_risk",
+        "lung_risk",
+        "lifestyle_risk"
+    ]
+
+    result = {}
 
     for i, risk in enumerate(risk_names):
         pred_class = np.argmax(predictions[i], axis=1)
         label = label_encoders[risk].inverse_transform(pred_class)[0]
         confidence = float(np.max(predictions[i]))
-        output[risk] = label
-        output[risk + "_confidence"] = round(confidence, 3)
 
-    # Generate recommendations
-    recs = generate_recommendations(output, input_dict)
+        result[risk] = label
+        result[f"{risk}_confidence"] = round(confidence, 3)
+
+    recommendations = generate_recommendations(result)
 
     return {
-        "risks": output,
-        "recommendations": recs
+        "risks": result,
+        "recommendations": recommendations
     }
-
-@app.get("/")
-def root():
-    return {"message": "Preventive Health API Running"}
