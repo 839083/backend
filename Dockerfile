@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --workers 1 --threads 1 --timeout 120 --bind 0.0.0.0:$PORT"]
+CMD ["sh", "-c", "gunicorn main:app -k uvicorn.workers.UvicornWorker --workers 1 --threads 1 --timeout 120 --preload --bind 0.0.0.0:$PORT"]
