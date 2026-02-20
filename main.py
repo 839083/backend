@@ -1,5 +1,5 @@
 # ===========================
-# Memory Optimization Section
+# TensorFlow Memory Optimization
 # ===========================
 import os
 
@@ -23,7 +23,22 @@ import numpy as np
 import joblib
 
 # ===========================
-# App Setup
+# Load Model BEFORE worker fork (important for --preload)
+# ===========================
+print("Loading model...")
+
+model = tf.keras.models.load_model(
+    "final_advanced_multi_domain_model.keras"
+)
+
+scaler = joblib.load("scaler.pkl")
+feature_columns = joblib.load("feature_columns.pkl")
+label_encoders = joblib.load("multi_label_encoders.pkl")
+
+print("Model loaded successfully!")
+
+# ===========================
+# FastAPI Setup
 # ===========================
 app = FastAPI(title="Preventive Health AI API")
 
@@ -36,34 +51,7 @@ app.add_middleware(
 )
 
 # ===========================
-# Global Variables
-# ===========================
-model = None
-scaler = None
-feature_columns = None
-label_encoders = None
-
-# ===========================
-# Load ML Objects on Startup
-# ===========================
-@app.on_event("startup")
-def load_ml_objects():
-    global model, scaler, feature_columns, label_encoders
-
-    print("Loading model...")
-
-    model = tf.keras.models.load_model(
-        "final_advanced_multi_domain_model.keras"
-    )
-
-    scaler = joblib.load("scaler.pkl")
-    feature_columns = joblib.load("feature_columns.pkl")
-    label_encoders = joblib.load("multi_label_encoders.pkl")
-
-    print("Model loaded successfully!")
-
-# ===========================
-# Root Health Check
+# Health Check Route
 # ===========================
 @app.get("/")
 def root():
@@ -159,7 +147,7 @@ def predict(data: HealthInput):
     input_dict = data.dict()
     df = pd.DataFrame([input_dict])
 
-    # Calculate BMI
+    # BMI
     df["bmi"] = df["weight_kg"] / ((df["height_cm"] / 100) ** 2)
 
     # One-hot encoding
