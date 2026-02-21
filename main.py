@@ -13,7 +13,7 @@ tf.config.threading.set_intra_op_parallelism_threads(1)
 tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # ===========================
-# Normal Imports
+# Other Imports
 # ===========================
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -23,19 +23,23 @@ import numpy as np
 import joblib
 
 # ===========================
-# Load Model BEFORE worker fork (important for --preload)
+# Load ML Objects BEFORE Worker Fork
 # ===========================
 print("Loading model...")
 
-model = tf.keras.models.load_model(
-    "final_advanced_multi_domain_model.keras"
-)
+try:
+    model = tf.keras.models.load_model(
+        "final_advanced_multi_domain_model.keras"
+    )
+    scaler = joblib.load("scaler.pkl")
+    feature_columns = joblib.load("feature_columns.pkl")
+    label_encoders = joblib.load("multi_label_encoders.pkl")
 
-scaler = joblib.load("scaler.pkl")
-feature_columns = joblib.load("feature_columns.pkl")
-label_encoders = joblib.load("multi_label_encoders.pkl")
+    print("Model loaded successfully!")
 
-print("Model loaded successfully!")
+except Exception as e:
+    print("MODEL LOADING ERROR:", str(e))
+    raise e
 
 # ===========================
 # FastAPI Setup
@@ -50,9 +54,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ===========================
-# Health Check Route
-# ===========================
 @app.get("/")
 def root():
     return {"status": "Preventive Health API Running"}
@@ -144,22 +145,15 @@ def generate_recommendations(risks):
 @app.post("/predict")
 def predict(data: HealthInput):
 
-    input_dict = data.dict()
-    df = pd.DataFrame([input_dict])
+    df = pd.DataFrame([data.dict()])
 
-    # BMI
     df["bmi"] = df["weight_kg"] / ((df["height_cm"] / 100) ** 2)
 
-    # One-hot encoding
     df = pd.get_dummies(df)
-
-    # Align columns
     df = df.reindex(columns=feature_columns, fill_value=0)
 
-    # Scale
     df_scaled = scaler.transform(df)
 
-    # Predict
     predictions = model.predict(df_scaled)
 
     risk_names = [
