@@ -2,7 +2,7 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install required system dependencies for TensorFlow
+# Install required system libraries for TensorFlow
 RUN apt-get update && apt-get install -y \
     build-essential \
     libgomp1 \
