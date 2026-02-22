@@ -102,10 +102,20 @@ tf.config.threading.set_inter_op_parallelism_threads(1)
 
 @st.cache_resource
 def load_objects():
-    model = tf.keras.models.load_model("final_advanced_multi_domain_model.keras")
-    scaler = joblib.load("scaler.pkl")
-    feature_columns = joblib.load("feature_columns.pkl")
-    label_encoders = joblib.load("multi_label_encoders.pkl")
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(script_dir)
+    
+    # Define file paths
+    model_path = os.path.join(root_dir, "final_advanced_multi_domain_model.keras")
+    scaler_path = os.path.join(root_dir, "scaler.pkl")
+    features_path = os.path.join(root_dir, "feature_columns.pkl")
+    encoders_path = os.path.join(root_dir, "multi_label_encoders.pkl")
+    
+    model = tf.keras.models.load_model(model_path)
+    scaler = joblib.load(scaler_path)
+    feature_columns = joblib.load(features_path)
+    label_encoders = joblib.load(encoders_path)
     return model, scaler, feature_columns, label_encoders
 
 model, scaler, feature_columns, label_encoders = load_objects()
@@ -116,7 +126,7 @@ st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 st.title("AI Health Risk Analysis")
 
 if "input_data" not in st.session_state:
-    st.switch_page("app.py")
+    st.switch_page("main.py")
 
 # ===================== MODEL PREDICTION =====================
 df = pd.DataFrame([st.session_state.input_data])

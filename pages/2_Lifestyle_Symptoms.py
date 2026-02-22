@@ -103,7 +103,7 @@ st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 st.title("Step 2: Lifestyle & Symptoms")
 
 if "input_data" not in st.session_state:
-    st.switch_page("app.py")
+    st.switch_page("main.py")
 
 # ---------------- Lifestyle Section ----------------
 st.markdown('<div class="section-title">🏃 Lifestyle Details</div>', unsafe_allow_html=True)
